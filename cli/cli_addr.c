@@ -1,15 +1,14 @@
-/* Target info example */
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
-#include <liblightnvm.h>
-#include "liblightnvm_cli.h"
+#include <liblightnvm_cli.h>
 
-int erase(NVM_CLI_CMD_ARGS *args)
+int erase(struct nvm_cli *cli)
 {
-	struct nvm_ret ret;
-	int PMODE = nvm_dev_get_pmode(args->dev);
+	struct nvm_cli_cmd_args *args = &cli->args;
+	const int PMODE = cli->evars.pmode;
+	struct nvm_ret ret = {0,0};
 	ssize_t err = 0;
 
 	printf("** nvm_addr_erase(...) : pmode(%s)\n", nvm_pmode_str(PMODE));
@@ -27,10 +26,11 @@ int erase(NVM_CLI_CMD_ARGS *args)
 	return err ? 1 : 0;
 }
 
-int _write(NVM_CLI_CMD_ARGS *args, int with_meta)
+int _write(struct nvm_cli *cli, int with_meta)
 {
-	struct nvm_ret ret;
-	int PMODE = nvm_dev_get_pmode(args->dev);
+	struct nvm_cli_cmd_args *args = &cli->args;
+	const int PMODE = cli->evars.pmode;
+	struct nvm_ret ret = {0,0};
 	ssize_t err = 0;
 
 	int buf_nbytes = args->naddrs * args->geo->sector_nbytes;
@@ -58,11 +58,11 @@ int _write(NVM_CLI_CMD_ARGS *args, int with_meta)
 		nvm_addr_pr(args->addrs[i]);
 	}
 
-	if (getenv("NVM_CLI_BUF_PR")) {
+	if (cli->evars.buf_pr) {
 		printf("** Writing buffer:\n");
 		nvm_buf_pr(buf, buf_nbytes);
 	}
-	if (meta && getenv("NVM_CLI_META_PR")) {
+	if (meta && cli->evars.meta_pr) {
 		printf("** Writing meta:\n");
 		nvm_buf_pr(meta, meta_tbytes);
 	}
@@ -80,20 +80,21 @@ int _write(NVM_CLI_CMD_ARGS *args, int with_meta)
 	return err ? 1 : 0;
 }
 
-int write(NVM_CLI_CMD_ARGS *args)
+int write(struct nvm_cli *cli)
 {
-	return _write(args, 0);
+	return _write(cli, 0);
 }
 
-int write_wm(NVM_CLI_CMD_ARGS *args)
+int write_wm(struct nvm_cli *cli)
 {
-	return _write(args, 1);
+	return _write(cli, 1);
 }
 
-int _read(NVM_CLI_CMD_ARGS *args, int with_meta)
+int _read(struct nvm_cli *cli, int with_meta)
 {
-	struct nvm_ret ret;
-	int PMODE = nvm_dev_get_pmode(args->dev);
+	struct nvm_cli_cmd_args *args = &cli->args;
+	const int PMODE = cli->evars.pmode;
+	struct nvm_ret ret = {0,0};
 	ssize_t err = 0;
 
 	int buf_nbytes = args->naddrs * args->geo->sector_nbytes;
@@ -119,7 +120,7 @@ int _read(NVM_CLI_CMD_ARGS *args, int with_meta)
 		nvm_addr_pr(args->addrs[i]);
 	}
 
-	if (meta && getenv("NVM_CLI_META_PR")) {
+	if (meta && cli->evars.meta_pr) {
 		printf("** Before read meta_tbytes(%d) meta:\n", meta_tbytes);
 		nvm_buf_pr(meta, meta_tbytes);
 	}
@@ -131,11 +132,11 @@ int _read(NVM_CLI_CMD_ARGS *args, int with_meta)
 		nvm_ret_pr(&ret);
 	}
 	
-	if (getenv("NVM_CLI_BUF_PR")) {
+	if (cli->evars.buf_pr) {
 		printf("** Read buffer:\n");
 		nvm_buf_pr(buf, buf_nbytes);
 	}
-	if (meta && getenv("NVM_CLI_META_PR")) {
+	if (meta && cli->evars.meta_pr) {
 		printf("** After read meta_tbytes(%d) meta:\n", meta_tbytes);
 		nvm_buf_pr(meta, meta_tbytes);
 	}
@@ -146,26 +147,28 @@ int _read(NVM_CLI_CMD_ARGS *args, int with_meta)
 	return err;
 }
 
-int read(NVM_CLI_CMD_ARGS *args)
+int read(struct nvm_cli *cli)
 {
-	return _read(args, 0);
+	return _read(cli, 0);
 }
 
-int read_wm(NVM_CLI_CMD_ARGS *args)
+int read_wm(struct nvm_cli *cli)
 {
-	return _read(args, 1);
+	return _read(cli, 1);
 }
 
-int cmd_fmt(NVM_CLI_CMD_ARGS *args)
+int cmd_fmt(struct nvm_cli *cli)
 {
-	for (int i = 0; i < args->naddrs; ++i)
-		nvm_addr_pr(args->addrs[i]);
+	for (int i = 0; i < cli->args.naddrs; ++i)
+		nvm_addr_pr(cli->args.addrs[i]);
 
 	return 0;
 }
 
-int cmd_gen2dev(NVM_CLI_CMD_ARGS *args)
+int cmd_gen2dev(struct nvm_cli *cli)
 {
+	struct nvm_cli_cmd_args *args = &cli->args;
+
 	for (int i = 0; i < args->naddrs; ++i) {
 		printf("gen-addr"); nvm_addr_pr(args->addrs[i]);
 		printf("dev-addr(0x%016lx)\n",
@@ -175,8 +178,10 @@ int cmd_gen2dev(NVM_CLI_CMD_ARGS *args)
 	return 0;
 }
 
-int cmd_gen2lba(NVM_CLI_CMD_ARGS *args)
+int cmd_gen2lba(struct nvm_cli *cli)
 {
+	struct nvm_cli_cmd_args *args = &cli->args;
+
 	for (int i = 0; i < args->naddrs; ++i) {
 		printf("gen-addr"); nvm_addr_pr(args->addrs[i]);
 		printf("lba-addr(%064ld)\n",
@@ -186,8 +191,10 @@ int cmd_gen2lba(NVM_CLI_CMD_ARGS *args)
 	return 0;
 }
 
-int cmd_gen2off(NVM_CLI_CMD_ARGS *args)
+int cmd_gen2off(struct nvm_cli *cli)
 {
+	struct nvm_cli_cmd_args *args = &cli->args;
+
 	for (int i = 0; i < args->naddrs; ++i) {
 		printf("gen-addr"); nvm_addr_pr(args->addrs[i]);
 		printf("off-addr(%064ld)\n",
@@ -197,72 +204,99 @@ int cmd_gen2off(NVM_CLI_CMD_ARGS *args)
 	return 0;
 }
 
-int cmd_dev2gen(NVM_CLI_CMD_ARGS *args)
+int cmd_dev2gen(struct nvm_cli *cli)
 {
-	for (int i = 0; i < args->nlbas; ++i) {
-		printf("dev-addr(%064ld)\n", args->lbas[i]);
-		nvm_addr_pr(nvm_addr_dev2gen(args->dev, args->lbas[i]));
+	struct nvm_cli_cmd_args *args = &cli->args;
+
+	for (int i = 0; i < args->ndec_vals; ++i) {
+		printf("dev-addr(%064ld)\n", args->dec_vals[i]);
+		nvm_addr_pr(nvm_addr_dev2gen(args->dev, args->dec_vals[i]));
 	}
 
 	return 0;
 }
 
-int cmd_lba2gen(NVM_CLI_CMD_ARGS *args)
+int cmd_lba2gen(struct nvm_cli *cli)
 {
-	for (int i = 0; i < args->nlbas; ++i) {
-		printf("lba-addr(%064ld)\n", args->lbas[i]);
-		nvm_addr_pr(nvm_addr_lba2gen(args->dev, args->lbas[i]));
+	struct nvm_cli_cmd_args *args = &cli->args;
+
+	for (int i = 0; i < args->ndec_vals; ++i) {
+		printf("lba-addr(%064ld)\n", args->dec_vals[i]);
+		nvm_addr_pr(nvm_addr_lba2gen(args->dev, args->dec_vals[i]));
 	}
 
 	return 0;
 }
 
-int cmd_off2gen(NVM_CLI_CMD_ARGS *args)
+int cmd_off2gen(struct nvm_cli *cli)
 {
-	for (int i = 0; i < args->nlbas; ++i) {
-		printf("off-addr(%064ld)\n", args->lbas[i]);
-		nvm_addr_pr(nvm_addr_off2gen(args->dev, args->lbas[i]));
+	struct nvm_cli_cmd_args *args = &cli->args;
+
+	for (int i = 0; i < args->ndec_vals; ++i) {
+		printf("off-addr(%064ld)\n", args->dec_vals[i]);
+		nvm_addr_pr(nvm_addr_off2gen(args->dev, args->dec_vals[i]));
 	}
 
 	return 0;
 }
 
-//
-// Remaining code is CLI boiler-plate
-//
-static NVM_CLI_CMD cmds[] = {
-	{"erase",	erase,		NVM_CLI_ARG_ADDRLIST, NULL},
-	{"write",	write,		NVM_CLI_ARG_ADDRLIST, NULL},
-	{"read",	read,		NVM_CLI_ARG_ADDRLIST, NULL},
-	{"write_wm",	write,		NVM_CLI_ARG_ADDRLIST, NULL},
-	{"read_wm",	read,		NVM_CLI_ARG_ADDRLIST, NULL},
-	{"from_hex",	cmd_fmt,	NVM_CLI_ARG_ADDRLIST, NULL},
-	{"from_geo",	cmd_fmt,	NVM_CLI_ARG_CH_LUN_PL_BLK_PG_SEC, NULL},
-	{"gen2dev",	cmd_gen2dev,	NVM_CLI_ARG_ADDRLIST, NULL},
-	{"gen2lba",	cmd_gen2lba,	NVM_CLI_ARG_ADDRLIST, NULL},
-	{"gen2off",	cmd_gen2off,	NVM_CLI_ARG_ADDRLIST, NULL},
-	{"dev2gen",	cmd_dev2gen,	NVM_CLI_ARG_INTLIST, NULL},
-	{"lba2gen",	cmd_lba2gen,	NVM_CLI_ARG_INTLIST, NULL},
-	{"off2gen",	cmd_off2gen,	NVM_CLI_ARG_INTLIST, NULL},
+/**
+ * Command-line interface (CLI) boiler-plate
+ */
+
+/* Define commands */
+static struct nvm_cli_cmd cmds[] = {
+	{"erase",	erase,		NVM_CLI_ARG_ADDR_LIST, NVM_CLI_OPT_NONE},
+	{"write",	write,		NVM_CLI_ARG_ADDR_LIST, NVM_CLI_OPT_NONE},
+	{"read",	read,		NVM_CLI_ARG_ADDR_LIST, NVM_CLI_OPT_NONE},
+	{"write_wm",	write,		NVM_CLI_ARG_ADDR_LIST, NVM_CLI_OPT_NONE},
+	{"read_wm",	read,		NVM_CLI_ARG_ADDR_LIST, NVM_CLI_OPT_NONE},
+	{"from_hex",	cmd_fmt,	NVM_CLI_ARG_ADDR_LIST, NVM_CLI_OPT_NONE},
+	{"from_geo",	cmd_fmt,	NVM_CLI_ARG_ADDR_SEC, NVM_CLI_OPT_NONE},
+	{"gen2dev",	cmd_gen2dev,	NVM_CLI_ARG_ADDR_LIST, NVM_CLI_OPT_NONE},
+	{"gen2lba",	cmd_gen2lba,	NVM_CLI_ARG_ADDR_LIST, NVM_CLI_OPT_NONE},
+	{"gen2off",	cmd_gen2off,	NVM_CLI_ARG_ADDR_LIST, NVM_CLI_OPT_NONE},
+	{"dev2gen",	cmd_dev2gen,	NVM_CLI_ARG_VALUE_LIST, NVM_CLI_OPT_NONE},
+	{"lba2gen",	cmd_lba2gen,	NVM_CLI_ARG_VALUE_LIST, NVM_CLI_OPT_NONE},
+	{"off2gen",	cmd_off2gen,	NVM_CLI_ARG_VALUE_LIST, NVM_CLI_OPT_NONE},
 };
 
-static int ncmds = sizeof(cmds) / sizeof(cmds[0]);
+/* Define the CLI */
+static struct nvm_cli cli = {
+	.title = "NVM address (nvm_addr_*)",
+	.description = ""
+		"from_(hex|geo):\n"
+		" Construct physical address on generic format from hex/geo\n\n"
+		"gen2(dev|lba|off):\n"
+		" Convert FROM generic format TO device format, LBA, and byte offset\n\n"
+		"(dev|lba|off)2gen:\n"
+		" Convert TO generic format FROM device format, LBA, and byte offset\n\n"
+		"Vector IO: erase/read/write/read_wm/write_wm\n"
+		" Write out-of-bound-area using (read|write)_wm"
+	,
+	.cmds = cmds,
+	.ncmds = sizeof(cmds) / sizeof(cmds[0]),
+};
 
+/* Initialize and run */
 int main(int argc, char **argv)
 {
-	NVM_CLI_CMD *cmd;
-	int ret = 0;
-
-	cmd = nvm_cli_setup(argc, argv, cmds, ncmds);
-	if (cmd) {
-		ret = cmd->func(cmd->args);
-	} else {
-		nvm_cli_usage(argv[0], "NVM address (nvm_addr_*)", cmds, ncmds);
-		ret = 1;
+	if (nvm_cli_init(&cli, argc, argv) < 0) {
+		switch (errno) {
+		case EINVAL:
+			nvm_cli_usage_pr(&cli);
+			break;
+		default:
+			perror("FAILED: ");
+			break;
+		}
+		return 1;
 	}
+
+	if (nvm_cli_run(&cli) < 0)
+		perror(cli.cmd.name);
 	
-	nvm_cli_teardown(cmd);
+	nvm_cli_destroy(&cli);
 
-	return ret != 0;
+	return 0;
 }
-
